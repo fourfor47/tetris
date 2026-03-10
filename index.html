@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>俄罗斯方块 - Tetris</title>
     <style>
         body {
@@ -16,6 +16,7 @@
             height: 100vh;
             margin: 0;
             overflow: hidden;
+            touch-action: manipulation;
         }
         h1 { margin-bottom: 10px; font-size: 24px; }
         #game-container {
@@ -35,9 +36,33 @@
             color: #aaa;
             text-align: center;
         }
+        #touch-controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            margin-top: 15px;
+        }
+        .row { display: flex; gap: 8px; }
+        .btn {
+            width: 60px;
+            height: 60px;
+            font-size: 24px;
+            background: #444;
+            color: white;
+            border: 2px solid #666;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .btn:active { background: #666; }
         #start-btn {
             margin-top: 15px;
-            padding: 10px 20px;
+            padding: 12px 24px;
             font-size: 18px;
             background: #4CAF50;
             color: white;
@@ -60,15 +85,29 @@
     </div>
     <button id="start-btn" onclick="startGame()">开始游戏</button>
 
+    <!-- 触摸控制按钮 -->
+    <div id="touch-controls" class="hidden">
+        <div class="row">
+            <button class="btn" id="btn-up">↑</button>
+        </div>
+        <div class="row">
+            <button class="btn" id="btn-left">←</button>
+            <button class="btn" id="btn-down">↓</button>
+            <button class="btn" id="btn-right">→</button>
+        </div>
+    </div>
+
     <script>
         const canvas = document.getElementById('tetris');
         const context = canvas.getContext('2d');
         const scoreElement = document.getElementById('score');
         const startBtn = document.getElementById('start-btn');
+        const touchControls = document.getElementById('touch-controls');
 
-        context.scale(20, 20); // 放大20倍
+        // 缩放 20 倍（每个方块 20x20 像素）
+        context.scale(20, 20);
 
-        // 方块形状定义
+        // 方块形状和颜色
         const pieces = 'ILJOTSZ';
         const colors = [
             null,
@@ -81,55 +120,29 @@
             '#FF3838', // Z
         ];
 
+        // 创建方块矩阵
         function createPiece(type) {
             if (type === 'I') {
-                return [
-                    [0, 1, 0, 0],
-                    [0, 1, 0, 0],
-                    [0, 1, 0, 0],
-                    [0, 1, 0, 0],
-                ];
+                return [[0,1,0,0],[0,1,0,0],[0,1,0,0],[0,1,0,0]];
             } else if (type === 'L') {
-                return [
-                    [0, 2, 0],
-                    [0, 2, 0],
-                    [0, 2, 2],
-                ];
+                return [[0,2,0],[0,2,0],[0,2,2]];
             } else if (type === 'J') {
-                return [
-                    [0, 3, 0],
-                    [0, 3, 0],
-                    [3, 3, 0],
-                ];
+                return [[0,3,0],[0,3,0],[3,3,0]];
             } else if (type === 'O') {
-                return [
-                    [4, 4],
-                    [4, 4],
-                ];
+                return [[4,4],[4,4]];
             } else if (type === 'Z') {
-                return [
-                    [5, 5, 0],
-                    [0, 5, 5],
-                    [0, 0, 0],
-                ];
+                return [[5,5,0],[0,5,5],[0,0,0]];
             } else if (type === 'S') {
-                return [
-                    [0, 6, 6],
-                    [6, 6, 0],
-                    [0, 0, 0],
-                ];
+                return [[0,6,6],[6,6,0],[0,0,0]];
             } else if (type === 'T') {
-                return [
-                    [0, 7, 0],
-                    [7, 7, 7],
-                    [0, 0, 0],
-                ];
+                return [[0,7,0],[7,7,7],[0,0,0]];
             }
         }
 
+        // 创建场地
         function createMatrix(w, h) {
             const matrix = [];
-            while (h--) {
+            for (let i = 0; i < h; i++) {
                 matrix.push(new Array(w).fill(0));
             }
             return matrix;
@@ -142,7 +155,7 @@
             for (let y = 0; y < m.length; ++y) {
                 for (let x = 0; x < m[y].length; ++x) {
                     if (m[y][x] !== 0 &&
-                       (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) {
+                        (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) {
                         return true;
                     }
                 }
@@ -150,8 +163,8 @@
             return false;
         }
 
+        // 绘制
         function draw() {
-            // 清空背景
             context.fillStyle = '#000';
             context.fillRect(0, 0, canvas.width, canvas.height);
             drawMatrix(arena, {x: 0, y: 0});
@@ -164,7 +177,6 @@
                     if (value !== 0) {
                         context.fillStyle = colors[value];
                         context.fillRect(x + offset.x, y + offset.y, 1, 1);
-                        // 添加一点边框效果
                         context.lineWidth = 0.05;
                         context.strokeStyle = 'white';
                         context.strokeRect(x + offset.x, y + offset.y, 1, 1);
@@ -173,6 +185,7 @@
             });
         }
 
+        // 合并方块到场地
         function merge(arena, player) {
             player.matrix.forEach((row, y) => {
                 row.forEach((value, x) => {
@@ -183,6 +196,7 @@
             });
         }
 
+        // 旋转
         function rotate(matrix, dir) {
             for (let y = 0; y < matrix.length; ++y) {
                 for (let x = 0; x < y; ++x) {
@@ -196,6 +210,7 @@
             }
         }
 
+        // 玩家下落（一次一格）
         function playerDrop() {
             player.pos.y++;
             if (collide(arena, player)) {
@@ -205,12 +220,10 @@
                 arenaSweep();
                 updateScore();
             }
-            dropCounter--;
-            if (dropCounter <= 0) {
-                playerDrop();
-            }
+            dropCounter = 0; // 重置计数器
         }
 
+        // 玩家移动
         function playerMove(offset) {
             player.pos.x += offset;
             if (collide(arena, player)) {
@@ -218,11 +231,12 @@
             }
         }
 
+        // 重置玩家方块
         function playerReset() {
             const piecesStr = 'ILJOTSZ';
-            player.matrix = createPiece(piecesStr[piecesStr.length * Math.random() | 0]);
+            player.matrix = createPiece(piecesStr[Math.floor(Math.random() * piecesStr.length)]);
             player.pos.y = 0;
-            player.pos.x = (arena[0].length / 2 | 0) - (player.matrix[0].length / 2 | 0);
+            player.pos.x = Math.floor(arena[0].length / 2) - Math.floor(player.matrix[0].length / 2);
             
             if (collide(arena, player)) {
                 // 游戏结束
@@ -233,9 +247,11 @@
                 isPaused = true;
                 startBtn.classList.remove('hidden');
                 startBtn.innerText = "重新开始";
+                touchControls.classList.add('hidden');
             }
         }
 
+        // 玩家旋转
         function playerRotate(dir) {
             const pos = player.pos.x;
             let offset = 1;
@@ -251,21 +267,22 @@
             }
         }
 
+        // 扫行（消除）
         function arenaSweep() {
             let rowCount = 0;
             outer: for (let y = arena.length - 1; y > 0; --y) {
                 for (let x = 0; x < arena[y].length; ++x) {
-                    if (arena[y][x] === 0) {
-                        continue outer;
-                    }
+                    if (arena[y][x] === 0) continue outer;
                 }
-                const row = arena.splice(y, 1)[0].fill(0);
-                arena.unshift(row);
+                arena.splice(y, 1)[0].fill(0);
+                arena.unshift(new Array(arena[0].length).fill(0));
                 ++y;
                 rowCount++;
             }
             if (rowCount > 0) {
                 player.score += rowCount * 10;
+                // 每消除 3 行速度稍快，最低 200ms
+                dropInterval = Math.max(200, 1500 - Math.floor(player.score / 3) * 100);
             }
         }
 
@@ -273,11 +290,13 @@
             scoreElement.innerText = player.score;
         }
 
+        // 游戏状态
         let dropCounter = 0;
-        let dropInterval = 1000;
+        let dropInterval = 1500; // 初始 1.5 秒（更友好）
         let lastTime = 0;
         let isPaused = true;
 
+        // 游戏循环
         function update(time = 0) {
             if (isPaused) return;
 
@@ -285,12 +304,13 @@
             lastTime = time;
             dropCounter += deltaTime;
             if (dropCounter > dropInterval) {
-                playerDrop();
+                playerDrop(); // 这里只调用一次，不再递归
             }
             draw();
             requestAnimationFrame(update);
         }
 
+        // 场地和玩家
         const arena = createMatrix(12, 20);
         const player = {
             pos: {x: 0, y: 0},
@@ -298,6 +318,7 @@
             score: 0,
         };
 
+        // 开始游戏
         function startGame() {
             arena.forEach(row => row.fill(0));
             player.score = 0;
@@ -305,9 +326,11 @@
             playerReset();
             isPaused = false;
             startBtn.classList.add('hidden');
+            touchControls.classList.remove('hidden'); // 显示触摸按钮
             update();
         }
 
+        // 键盘控制
         document.addEventListener('keydown', event => {
             if (isPaused) return;
             if (event.keyCode === 37) { // Left
@@ -321,7 +344,13 @@
             }
         });
 
-        // 初始绘制一次背景
+        // 触摸按钮控制
+        document.getElementById('btn-left').addEventListener('click', () => { if (!isPaused) playerMove(-1); });
+        document.getElementById('btn-right').addEventListener('click', () => { if (!isPaused) playerMove(1); });
+        document.getElementById('btn-down').addEventListener('click', () => { if (!isPaused) playerDrop(); });
+        document.getElementById('btn-up').addEventListener('click', () => { if (!isPaused) playerRotate(1); });
+
+        // 初始绘制
         draw();
     </script>
 </body>
